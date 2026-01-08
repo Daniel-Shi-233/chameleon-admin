@@ -336,13 +336,13 @@ export default function TemplateList() {
 
                   {/* Thumbnail - Clickable for preview */}
                   <div
-                    className="aspect-square relative cursor-pointer"
+                    className="aspect-square relative cursor-pointer overflow-hidden bg-gray-100"
                     onClick={() => setPreviewTemplate(template)}
                   >
                     {template.type === 'video' && template.preview_video_url ? (
                       <video
                         src={template.preview_video_url}
-                        className="w-full h-full object-cover"
+                        className="absolute inset-0 w-full h-full object-cover"
                         muted
                         loop
                         autoPlay
@@ -352,7 +352,7 @@ export default function TemplateList() {
                       <img
                         src={template.thumbnail_url || 'https://via.placeholder.com/400'}
                         alt={template.name}
-                        className="w-full h-full object-cover"
+                        className="absolute inset-0 w-full h-full object-cover"
                       />
                     )}
                     {/* Hover overlay */}
