@@ -336,13 +336,13 @@ export default function TemplateList() {
 
                   {/* Thumbnail - Clickable for preview */}
                   <div
-                    className="aspect-square relative cursor-pointer overflow-hidden bg-gray-100"
+                    className="aspect-square relative cursor-pointer overflow-hidden bg-gray-200 group"
                     onClick={() => setPreviewTemplate(template)}
                   >
                     {template.type === 'video' && template.preview_video_url ? (
                       <video
                         src={template.preview_video_url}
-                        className="absolute inset-0 w-full h-full object-cover"
+                        className="absolute inset-0 w-full h-full object-cover z-0"
                         muted
                         loop
                         autoPlay
@@ -352,12 +352,15 @@ export default function TemplateList() {
                       <img
                         src={template.thumbnail_url || 'https://via.placeholder.com/400'}
                         alt={template.name}
-                        className="absolute inset-0 w-full h-full object-cover"
+                        className="absolute inset-0 w-full h-full object-cover z-0"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400?text=Error';
+                        }}
                       />
                     )}
-                    {/* Hover overlay */}
-                    <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-30 transition-all flex items-center justify-center">
-                      <svg className="w-12 h-12 text-white opacity-0 hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    {/* Hover overlay - only visible on hover */}
+                    <div className="absolute inset-0 z-10 bg-transparent group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                      <svg className="w-12 h-12 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
                       </svg>
                     </div>
