@@ -1,0 +1,6 @@
+name = "chameleon-admin"
+compatibility_date = "2024-01-01"
+pages_build_output_dir = "./dist"
+
+[vars]
+VITE_API_URL = "https://chameleon-api-446996287300.us-central1.run.app"
