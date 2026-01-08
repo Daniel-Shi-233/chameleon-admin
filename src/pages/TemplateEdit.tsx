@@ -3,6 +3,31 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { getTemplateApi, getAuth, initTemplateApi } from '../services/api';
 import type { Template, TemplateType, TemplateParams } from '../types/template';
 
+// Toast component
+function Toast({ message, type, onClose }: { message: string; type: 'success' | 'error'; onClose: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 3000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 ${
+      type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+    }`}>
+      {type === 'success' ? (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+        </svg>
+      ) : (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      )}
+      {message}
+    </div>
+  );
+}
+
 // Tooltip component
 function Tooltip({ text }: { text: string }) {
   return (
@@ -63,11 +88,14 @@ export default function TemplateEdit() {
   const isNew = !id || id === 'new';
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
 
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
   const [error, setError] = useState('');
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Form state
   const [name, setName] = useState('');
@@ -186,6 +214,40 @@ export default function TemplateEdit() {
     }
   };
 
+  const handleVideoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['video/mp4', 'video/webm', 'video/quicktime'];
+    if (!validTypes.includes(file.type)) {
+      setError('Please select a video file (MP4, WebM, MOV)');
+      return;
+    }
+
+    // Validate file size (50MB max for videos)
+    const maxSize = 50 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setError('Video file size must be less than 50MB');
+      return;
+    }
+
+    // Upload to R2 storage
+    setUploadingVideo(true);
+    setError('');
+    try {
+      const api = getTemplateApi();
+      const result = await api.uploadFile(file);
+      setPreviewVideoUrl(result.url);
+      setToast({ message: 'Video uploaded successfully', type: 'success' });
+    } catch (err) {
+      console.error('Video upload failed:', err);
+      setError('Failed to upload video. Please try again or enter URL manually.');
+    } finally {
+      setUploadingVideo(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -213,11 +275,14 @@ export default function TemplateEdit() {
 
       if (isNew) {
         await api.createTemplate(data);
+        setToast({ message: 'Template created successfully', type: 'success' });
       } else if (id) {
         await api.updateTemplate(id, data);
+        setToast({ message: 'Template saved successfully', type: 'success' });
       }
 
-      navigate('/templates');
+      // Delay navigation to show toast
+      setTimeout(() => navigate('/templates'), 1000);
     } catch (err) {
       setError('Failed to save template');
       console.error(err);
@@ -236,6 +301,11 @@ export default function TemplateEdit() {
 
   return (
     <div className="min-h-screen bg-gray-100">
+      {/* Toast */}
+      {toast && (
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+      )}
+
       {/* Header */}
       <header className="bg-white shadow">
         <div className="max-w-4xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
@@ -412,16 +482,48 @@ export default function TemplateEdit() {
             {type === 'video' && (
               <div className="mt-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Preview Video URL
-                  <Tooltip text="Optional video preview shown when users tap on the template. Should be a short clip demonstrating the effect." />
+                  Preview Video
+                  <Tooltip text="Optional video preview shown when users tap on the template. Should be a short clip demonstrating the effect. Max 50MB." />
                 </label>
-                <input
-                  type="url"
-                  value={previewVideoUrl}
-                  onChange={(e) => setPreviewVideoUrl(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="https://example.com/preview.mp4"
-                />
+                <div className="space-y-3">
+                  <div className="flex items-center gap-4">
+                    {previewVideoUrl && (
+                      <div className="w-32 h-20 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                        <video
+                          src={previewVideoUrl}
+                          className="w-full h-full object-cover"
+                          controls
+                          muted
+                        />
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <input
+                        ref={videoInputRef}
+                        type="file"
+                        accept="video/mp4,video/webm,video/quicktime"
+                        onChange={handleVideoSelect}
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => videoInputRef.current?.click()}
+                        disabled={uploadingVideo}
+                        className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md disabled:opacity-50"
+                      >
+                        {uploadingVideo ? 'Uploading...' : 'Upload Video'}
+                      </button>
+                      <span className="text-gray-500 text-sm ml-2">or enter URL below</span>
+                    </div>
+                  </div>
+                  <input
+                    type="url"
+                    value={previewVideoUrl}
+                    onChange={(e) => setPreviewVideoUrl(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="https://example.com/preview.mp4"
+                  />
+                </div>
               </div>
             )}
           </div>

@@ -35,6 +35,7 @@ export interface TemplateListItem {
   thumbnail_url: string;
   preview_video_url?: string;
   sort_order: number;
+  is_active: boolean;
   is_public: boolean;
 }
 

@@ -126,6 +126,19 @@ export class TemplateApi {
     });
     return response.data.data;
   }
+
+  async batchUpdateTemplates(ids: string[], updates: { is_active?: boolean; is_public?: boolean }): Promise<number> {
+    const response = await this.client.patch<ApiResponse<{ updated: number }>>('/templates/batch', {
+      ids,
+      ...updates,
+    });
+    return response.data.data.updated;
+  }
+
+  async duplicateTemplate(id: string): Promise<Template> {
+    const response = await this.client.post<ApiResponse<Template>>(`/templates/${id}/duplicate`);
+    return response.data.data;
+  }
 }
 
 // Singleton pattern for API client
