@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { getTemplateApi, clearAuth, getAuth, initTemplateApi } from '../services/api';
 import type { TemplateListItem } from '../types/template';
 
@@ -222,7 +222,17 @@ export default function TemplateList() {
       {/* Header */}
       <header className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">Template Management</h1>
+          <div className="flex items-center gap-6">
+            <h1 className="text-2xl font-bold text-gray-900">Template Management</h1>
+            <nav className="flex gap-4">
+              <Link to="/templates" className="text-blue-600 font-medium">
+                Templates
+              </Link>
+              <Link to="/users" className="text-gray-600 hover:text-gray-900">
+                Users
+              </Link>
+            </nav>
+          </div>
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate('/templates/new')}

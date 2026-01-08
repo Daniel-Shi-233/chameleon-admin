@@ -8,6 +8,7 @@ import type {
   ApiResponse,
 } from '../types/template';
 import type { LoginRequest, LoginResponse, AdminUser } from '../types/admin';
+import type { UserListResponse, UserDetail } from '../types/user';
 
 // Base URL for API
 const BASE_URL = 'https://chameleon-api-446996287300.us-central1.run.app';
@@ -194,4 +195,60 @@ export const getAuth = (): { token: string; user: AdminUser; permissions: string
 export const clearAuth = (): void => {
   sessionStorage.removeItem(AUTH_KEY);
   clearTemplateApi();
+  clearUserApi();
+};
+
+// User API
+export class UserApi {
+  private client: AxiosInstance;
+
+  constructor(token: string) {
+    this.client = createApiClient(token);
+  }
+
+  async listUsers(params?: {
+    page?: number;
+    page_size?: number;
+    email?: string;
+    account_type?: string;
+  }): Promise<UserListResponse> {
+    const response = await this.client.get<ApiResponse<UserListResponse>>('/users', {
+      params,
+    });
+    return response.data.data;
+  }
+
+  async getUser(id: string): Promise<UserDetail> {
+    const response = await this.client.get<ApiResponse<UserDetail>>(`/users/${id}`);
+    return response.data.data;
+  }
+
+  async grantCredits(id: string, amount: number, reason?: string): Promise<{ transaction_id: string; amount: number; reason: string }> {
+    const response = await this.client.post<ApiResponse<{ transaction_id: string; amount: number; reason: string }>>(`/users/${id}/credits`, {
+      amount,
+      reason,
+    });
+    return response.data.data;
+  }
+}
+
+// Singleton pattern for User API client
+let userApi: UserApi | null = null;
+
+export const getUserApi = (token?: string): UserApi => {
+  if (!userApi && token) {
+    userApi = new UserApi(token);
+  }
+  if (!userApi) {
+    throw new Error('User API not initialized');
+  }
+  return userApi;
+};
+
+export const initUserApi = (token: string): void => {
+  userApi = new UserApi(token);
+};
+
+export const clearUserApi = (): void => {
+  userApi = null;
 };
