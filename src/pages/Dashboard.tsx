@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { getDashboardSummary, clearAuth, getAuth, type DashboardSummary } from '../services/api';
+import { getDashboardSummary, getAttributionStats, clearAuth, getAuth, type DashboardSummary } from '../services/api';
+import type { AttributionStats } from '../types/attribution';
 
 export default function Dashboard() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [attributionStats, setAttributionStats] = useState<AttributionStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [userEmail, setUserEmail] = useState('');
@@ -24,6 +26,15 @@ export default function Dashboard() {
       setLoading(true);
       const data = await getDashboardSummary(token);
       setSummary(data);
+
+      // Load attribution stats separately (don't block dashboard if it fails)
+      try {
+        const statsData = await getAttributionStats(token);
+        setAttributionStats(statsData);
+      } catch (statsErr) {
+        console.error('Failed to load attribution stats:', statsErr);
+        setAttributionStats(null);
+      }
     } catch (err) {
       setError('Failed to load dashboard');
       console.error(err);
@@ -64,8 +75,8 @@ export default function Dashboard() {
               <Link to="/jobs" className="text-gray-600 hover:text-gray-900">
                 Jobs
               </Link>
-              <Link to="/alerts" className="text-gray-600 hover:text-gray-900">
-                Alerts
+              <Link to="/attribution" className="text-gray-600 hover:text-gray-900">
+                Attribution
               </Link>
             </nav>
           </div>
@@ -172,44 +183,134 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Pending Alerts */}
-            {summary.pending_alerts > 0 && (
+            {/* Unhandled Failed Jobs */}
+            {summary.unhandled_failed_jobs > 0 && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-yellow-800 font-medium">Pending Alerts</h3>
+                    <h3 className="text-yellow-800 font-medium">Unhandled Failed Jobs</h3>
                     <p className="text-yellow-600 text-sm mt-1">
-                      There are {summary.pending_alerts} alerts that need attention.
+                      There are {summary.unhandled_failed_jobs} failed jobs that need attention.
                     </p>
                   </div>
                   <Link
-                    to="/alerts?status=pending"
+                    to="/jobs?status=failed"
                     className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700"
                   >
-                    Manage Alerts
+                    View & Handle
                   </Link>
                 </div>
               </div>
             )}
 
-            {/* Failed Jobs (no pending alerts) */}
-            {summary.pending_alerts === 0 && summary.failed_jobs > 0 && (
+            {/* Failed Jobs (all handled) */}
+            {summary.unhandled_failed_jobs === 0 && summary.failed_jobs > 0 && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-red-800 font-medium">Failed Jobs</h3>
-                    <p className="text-red-600 text-sm mt-1">
-                      There are {summary.failed_jobs} failed jobs. Consider creating alerts for tracking.
+                    <h3 className="text-green-800 font-medium">Failed Jobs</h3>
+                    <p className="text-green-600 text-sm mt-1">
+                      All {summary.failed_jobs} failed jobs have been handled.
                     </p>
                   </div>
                   <Link
                     to="/jobs?status=failed"
-                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                    className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
                   >
-                    View Failed Jobs
+                    View All
                   </Link>
                 </div>
               </div>
+            )}
+
+            {/* Attribution Statistics */}
+            {attributionStats && (
+              <>
+                <div className="mt-8">
+                  <h2 className="text-lg font-semibold mb-4">Attribution Statistics</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <div className="text-sm text-gray-500">Total Users</div>
+                      <div className="text-3xl font-bold text-blue-600">{attributionStats.total_users.toLocaleString()}</div>
+                      <div className="text-xs text-gray-400 mt-1">
+                        {attributionStats.organic_users} organic / {attributionStats.paid_ad_users} paid
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <div className="text-sm text-gray-500">Organic Users</div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="text-3xl font-bold text-green-600">
+                          {attributionStats.organic_users.toLocaleString()}
+                        </div>
+                        <span className="text-sm px-2 py-1 bg-green-100 text-green-700 rounded">
+                          {attributionStats.organic_percentage.toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <div className="text-sm text-gray-500">Paid Ad Users</div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="text-3xl font-bold text-purple-600">
+                          {attributionStats.paid_ad_users.toLocaleString()}
+                        </div>
+                        <span className="text-sm px-2 py-1 bg-purple-100 text-purple-700 rounded">
+                          {attributionStats.paid_ad_percentage.toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <div className="text-sm text-gray-500">Match Rate</div>
+                      <div className="text-3xl font-bold text-teal-600">
+                        {attributionStats.match_rate.toFixed(1)}%
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1">
+                        {attributionStats.matched_fingerprints} / {attributionStats.total_fingerprints} fingerprints
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-8">
+                  <h2 className="text-lg font-semibold mb-4">Credit Tracking</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <div className="text-sm text-gray-500">Trial Credits Granted</div>
+                      <div className="text-3xl font-bold text-orange-600">
+                        {attributionStats.trial_credits_granted.toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <div className="text-sm text-gray-500">Credit Grant Rate</div>
+                      <div className="text-3xl font-bold text-pink-600">
+                        {attributionStats.credit_grant_rate.toFixed(1)}%
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1">
+                        of matched fingerprints
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <div className="text-sm text-gray-500">Organic Total Credits</div>
+                      <div className="text-3xl font-bold text-green-600">
+                        {attributionStats.organic_total_credits.toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <div className="text-sm text-gray-500">Paid Ad Total Credits</div>
+                      <div className="text-3xl font-bold text-purple-600">
+                        {attributionStats.paid_ad_total_credits.toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-4 text-center">
+                    <Link
+                      to="/attribution"
+                      className="inline-block text-blue-600 hover:text-blue-800 text-sm font-medium"
+                    >
+                      View Detailed Attribution Analytics →
+                    </Link>
+                  </div>
+                </div>
+              </>
             )}
 
             {/* Quick Links */}

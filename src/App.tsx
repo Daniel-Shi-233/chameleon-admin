@@ -5,6 +5,7 @@ import TemplateList from './pages/TemplateList';
 import TemplateEdit from './pages/TemplateEdit';
 import UserList from './pages/UserList';
 import JobList from './pages/JobList';
+import Attribution from './pages/Attribution';
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
         <Route path="/templates/:id" element={<TemplateEdit />} />
         <Route path="/users" element={<UserList />} />
         <Route path="/jobs" element={<JobList />} />
+        <Route path="/attribution" element={<Attribution />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

@@ -374,6 +374,9 @@ export default function UserList() {
               <Link to="/jobs" className="text-gray-600 hover:text-gray-900">
                 Jobs
               </Link>
+              <Link to="/attribution" className="text-gray-600 hover:text-gray-900">
+                Attribution
+              </Link>
             </nav>
           </div>
           <div className="flex items-center gap-4">

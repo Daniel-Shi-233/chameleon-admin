@@ -9,7 +9,8 @@ import type {
 } from '../types/template';
 import type { LoginRequest, LoginResponse, AdminUser } from '../types/admin';
 import type { UserListResponse, UserDetail } from '../types/user';
-import type { JobListResponse, JobDetail, JobStats, JobListParams, AlertListResponse, AlertStats, AlertListParams, JobAlert } from '../types/job';
+import type { JobListResponse, JobDetail, JobStats, JobListParams } from '../types/job';
+import type { AttributionStats } from '../types/attribution';
 
 // Dashboard types
 export interface DashboardSummary {
@@ -27,8 +28,8 @@ export interface DashboardSummary {
   guest_users: number;
   registered_users: number;
   total_credits: number;
-  // Alert stats
-  pending_alerts: number;
+  // Unhandled failed jobs
+  unhandled_failed_jobs: number;
 }
 
 // Base URL for API
@@ -293,6 +294,30 @@ export class JobApi {
     const response = await this.client.get<ApiResponse<JobStats>>('/jobs/stats');
     return response.data.data;
   }
+
+  async acknowledgeJob(id: string, notes?: string): Promise<{ message: string }> {
+    const response = await this.client.post<ApiResponse<{ message: string }>>(`/jobs/${id}/acknowledge`, {
+      notes,
+    });
+    return response.data.data;
+  }
+
+  async acknowledgeJobBatch(jobIds: string[], notes?: string): Promise<{ message: string; count: number }> {
+    const response = await this.client.post<ApiResponse<{ message: string; count: number }>>('/jobs/acknowledge-batch', {
+      job_ids: jobIds,
+      notes,
+    });
+    return response.data.data;
+  }
+
+  async createJobTicket(id: string, ticketId: string, ticketURL: string, notes?: string): Promise<{ message: string; ticket_id: string }> {
+    const response = await this.client.post<ApiResponse<{ message: string; ticket_id: string }>>(`/jobs/${id}/ticket`, {
+      ticket_id: ticketId,
+      ticket_url: ticketURL,
+      notes,
+    });
+    return response.data.data;
+  }
 }
 
 // Singleton pattern for Job API client
@@ -316,89 +341,24 @@ export const clearJobApi = (): void => {
   jobApi = null;
 };
 
-// Alert API
-export class AlertApi {
-  private client: AxiosInstance;
-
-  constructor(token: string) {
-    this.client = createApiClient(token);
-  }
-
-  async listAlerts(params?: AlertListParams): Promise<AlertListResponse> {
-    const response = await this.client.get<ApiResponse<AlertListResponse>>('/alerts', {
-      params,
-    });
-    return response.data.data;
-  }
-
-  async getAlert(id: string): Promise<JobAlert> {
-    const response = await this.client.get<ApiResponse<JobAlert>>(`/alerts/${id}`);
-    return response.data.data;
-  }
-
-  async getAlertStats(): Promise<AlertStats> {
-    const response = await this.client.get<ApiResponse<AlertStats>>('/alerts/stats');
-    return response.data.data;
-  }
-
-  async acknowledgeAlert(id: string, notes: string): Promise<{ message: string; alert_id: string }> {
-    const response = await this.client.post<ApiResponse<{ message: string; alert_id: string }>>(`/alerts/${id}/acknowledge`, {
-      notes,
-    });
-    return response.data.data;
-  }
-
-  async acknowledgeBatch(alertIds: string[], notes: string): Promise<{ message: string; acknowledged_count: number }> {
-    const response = await this.client.post<ApiResponse<{ message: string; acknowledged_count: number }>>('/alerts/acknowledge-batch', {
-      alert_ids: alertIds,
-      notes,
-    });
-    return response.data.data;
-  }
-
-  async createTicket(id: string, ticketId: string, ticketUrl: string, notes: string): Promise<{ message: string; alert_id: string; ticket_id: string; ticket_url: string }> {
-    const response = await this.client.post<ApiResponse<{ message: string; alert_id: string; ticket_id: string; ticket_url: string }>>(`/alerts/${id}/ticket`, {
-      ticket_id: ticketId,
-      ticket_url: ticketUrl,
-      notes,
-    });
-    return response.data.data;
-  }
-}
-
-// Singleton pattern for Alert API client
-let alertApi: AlertApi | null = null;
-
-export const getAlertApi = (token?: string): AlertApi => {
-  if (!alertApi && token) {
-    alertApi = new AlertApi(token);
-  }
-  if (!alertApi) {
-    throw new Error('Alert API not initialized');
-  }
-  return alertApi;
-};
-
-export const initAlertApi = (token: string): void => {
-  alertApi = new AlertApi(token);
-};
-
-export const clearAlertApi = (): void => {
-  alertApi = null;
-};
-
 // Clear all auth and API clients
 export const clearAuth = (): void => {
   sessionStorage.removeItem(AUTH_KEY);
   clearTemplateApi();
   clearUserApi();
   clearJobApi();
-  clearAlertApi();
 };
 
 // Dashboard API (standalone function)
 export const getDashboardSummary = async (token: string): Promise<DashboardSummary> => {
   const client = createApiClient(token);
   const response = await client.get<ApiResponse<DashboardSummary>>('/dashboard/summary');
+  return response.data.data;
+};
+
+// Attribution Statistics API (standalone function)
+export const getAttributionStats = async (token: string): Promise<AttributionStats> => {
+  const client = createApiClient(token);
+  const response = await client.get<ApiResponse<AttributionStats>>('/stats/attribution');
   return response.data.data;
 };

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { getJobApi, clearAuth, getAuth, initJobApi } from '../services/api';
 import type { JobListItem, JobDetail, JobStatus, JobType } from '../types/job';
 
@@ -260,6 +260,7 @@ function JobDetailModal({
 }
 
 export default function JobList() {
+  const [searchParams] = useSearchParams();
   const [jobs, setJobs] = useState<JobListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -273,7 +274,28 @@ export default function JobList() {
   const [userEmail, setUserEmail] = useState('');
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  // Batch selection and modals
+  const [selectedJobs, setSelectedJobs] = useState<Set<string>>(new Set());
+  const [showAcknowledgeModal, setShowAcknowledgeModal] = useState(false);
+  const [showTicketModal, setShowTicketModal] = useState(false);
+  const [selectedJobForTicket, setSelectedJobForTicket] = useState<JobListItem | null>(null);
+  const [notes, setNotes] = useState('');
+  const [ticketId, setTicketId] = useState('');
+  const [ticketURL, setTicketURL] = useState('');
   const navigate = useNavigate();
+
+  // Read URL params on mount
+  useEffect(() => {
+    const statusParam = searchParams.get('status');
+    if (statusParam && ['queued', 'processing', 'completed', 'failed', 'cancelled'].includes(statusParam)) {
+      setStatusFilter(statusParam as JobStatus);
+    }
+    const searchParam = searchParams.get('search');
+    if (searchParam) {
+      setSearch(searchParam);
+      setSearchInput(searchParam);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const auth = getAuth();
@@ -338,6 +360,83 @@ export default function JobList() {
     }
   };
 
+  const getAlertStatusBadge = (alertStatus?: string) => {
+    if (!alertStatus) return null;
+    const styles: Record<string, string> = {
+      pending: 'bg-yellow-100 text-yellow-800',
+      acknowledged: 'bg-green-100 text-green-800',
+      ticketed: 'bg-blue-100 text-blue-800',
+    };
+    return (
+      <span className={`ml-2 px-2 py-1 rounded text-xs font-medium ${styles[alertStatus]}`}>
+        {alertStatus}
+      </span>
+    );
+  };
+
+  const handleSelectAll = () => {
+    const failedJobs = jobs.filter(j => j.status === 'failed');
+    if (selectedJobs.size === failedJobs.length) {
+      setSelectedJobs(new Set());
+    } else {
+      setSelectedJobs(new Set(failedJobs.map(j => j.id)));
+    }
+  };
+
+  const handleSelectJob = (id: string) => {
+    const newSelected = new Set(selectedJobs);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedJobs(newSelected);
+  };
+
+  const handleBatchAcknowledge = async () => {
+    if (selectedJobs.size === 0) return;
+
+    try {
+      const api = getJobApi();
+      await api.acknowledgeJobBatch(Array.from(selectedJobs), notes || undefined);
+      setShowAcknowledgeModal(false);
+      setNotes('');
+      setSelectedJobs(new Set());
+      setToast({ message: `${selectedJobs.size} jobs acknowledged`, type: 'success' });
+      loadJobs();
+    } catch (err) {
+      setToast({ message: 'Failed to acknowledge jobs', type: 'error' });
+      console.error(err);
+    }
+  };
+
+
+  const handleCreateTicket = async () => {
+    if (!selectedJobForTicket || !ticketId) return;
+
+    try {
+      const api = getJobApi();
+      await api.createJobTicket(selectedJobForTicket.id, ticketId, ticketURL, notes || undefined);
+      setShowTicketModal(false);
+      setSelectedJobForTicket(null);
+      setTicketId('');
+      setTicketURL('');
+      setNotes('');
+      setToast({ message: 'Ticket created', type: 'success' });
+      loadJobs();
+    } catch (err) {
+      setToast({ message: 'Failed to create ticket', type: 'error' });
+      console.error(err);
+    }
+  };
+
+  const openTicketModal = (job: JobListItem) => {
+    setSelectedJobForTicket(job);
+    setShowTicketModal(true);
+  };
+
+  const failedJobsCount = jobs.filter(j => j.status === 'failed').length;
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
@@ -357,6 +456,9 @@ export default function JobList() {
               </Link>
               <Link to="/jobs" className="text-blue-600 font-medium">
                 Jobs
+              </Link>
+              <Link to="/attribution" className="text-gray-600 hover:text-gray-900">
+                Attribution
               </Link>
             </nav>
           </div>
@@ -458,10 +560,20 @@ export default function JobList() {
           </div>
         ) : (
           <>
-            {/* Stats */}
-            <div className="mb-4 text-sm text-gray-600">
-              Showing {jobs.length} of {total} jobs
-              {search && <span className="ml-2">(filtered by user "{search}")</span>}
+            {/* Stats and Batch Actions */}
+            <div className="mb-4 flex justify-between items-center">
+              <div className="text-sm text-gray-600">
+                Showing {jobs.length} of {total} jobs
+                {search && <span className="ml-2">(filtered by user "{search}")</span>}
+              </div>
+              {statusFilter === 'failed' && selectedJobs.size > 0 && (
+                <button
+                  onClick={() => setShowAcknowledgeModal(true)}
+                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                >
+                  Acknowledge Selected ({selectedJobs.size})
+                </button>
+              )}
             </div>
 
             {/* Job Table */}
@@ -469,6 +581,16 @@ export default function JobList() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
+                    {statusFilter === 'failed' && (
+                      <th className="px-4 py-3 text-left">
+                        <input
+                          type="checkbox"
+                          checked={failedJobsCount > 0 && selectedJobs.size === failedJobsCount}
+                          onChange={handleSelectAll}
+                          className="rounded"
+                        />
+                      </th>
+                    )}
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       ID
                     </th>
@@ -495,6 +617,17 @@ export default function JobList() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {jobs.map((job) => (
                     <tr key={job.id} className="hover:bg-gray-50">
+                      {statusFilter === 'failed' && (
+                        <td className="px-4 py-4">
+                          <input
+                            type="checkbox"
+                            checked={selectedJobs.has(job.id)}
+                            onChange={() => handleSelectJob(job.id)}
+                            className="rounded"
+                            disabled={job.status !== 'failed'}
+                          />
+                        </td>
+                      )}
                       <td className="px-4 py-4 whitespace-nowrap">
                         <div className="text-sm font-mono text-gray-900">{job.id.substring(0, 8)}...</div>
                         <div className="text-xs text-gray-500">User: {job.user_id.substring(0, 8)}...</div>
@@ -518,6 +651,7 @@ export default function JobList() {
                         {job.progress > 0 && job.progress < 100 && (
                           <span className="ml-2 text-xs text-gray-500">{job.progress}%</span>
                         )}
+                        {job.status === 'failed' && getAlertStatusBadge(job.alert_status)}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                         {job.cost}
@@ -535,22 +669,43 @@ export default function JobList() {
                         )}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
-                        <button
-                          onClick={() => setSelectedJobId(job.id)}
-                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                        >
-                          Details
-                        </button>
-                        {job.result_url && (
-                          <a
-                            href={job.result_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="ml-3 text-green-600 hover:text-green-800 text-sm font-medium"
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setSelectedJobId(job.id)}
+                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                           >
-                            View
-                          </a>
-                        )}
+                            Details
+                          </button>
+                          {job.result_url && (
+                            <a
+                              href={job.result_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-green-600 hover:text-green-800 text-sm font-medium"
+                            >
+                              View
+                            </a>
+                          )}
+                          {job.status === 'failed' && !job.alert_status && (
+                            <>
+                              <button
+                                onClick={() => {
+                                  setSelectedJobs(new Set([job.id]));
+                                  setShowAcknowledgeModal(true);
+                                }}
+                                className="text-green-600 hover:text-green-800 text-sm font-medium"
+                              >
+                                Ack
+                              </button>
+                              <button
+                                onClick={() => openTicketModal(job)}
+                                className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                              >
+                                Ticket
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -597,6 +752,118 @@ export default function JobList() {
           jobId={selectedJobId}
           onClose={() => setSelectedJobId(null)}
         />
+      )}
+
+      {/* Acknowledge Modal */}
+      {showAcknowledgeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold mb-4">
+                Acknowledge {selectedJobs.size} Job{selectedJobs.size > 1 ? 's' : ''}
+              </h3>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Notes (Optional)
+                </label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows={4}
+                  placeholder="Add any notes about this acknowledgement..."
+                />
+              </div>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => {
+                    setShowAcknowledgeModal(false);
+                    setNotes('');
+                  }}
+                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleBatchAcknowledge}
+                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                >
+                  Acknowledge
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ticket Modal */}
+      {showTicketModal && selectedJobForTicket && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold mb-4">
+                Create Ticket for Job {selectedJobForTicket.id.substring(0, 8)}...
+              </h3>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Ticket ID <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={ticketId}
+                  onChange={(e) => setTicketId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g., PROJ-123"
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Ticket URL (Optional)
+                </label>
+                <input
+                  type="url"
+                  value={ticketURL}
+                  onChange={(e) => setTicketURL(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="https://..."
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Notes (Optional)
+                </label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows={3}
+                  placeholder="Add any notes about this ticket..."
+                />
+              </div>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => {
+                    setShowTicketModal(false);
+                    setSelectedJobForTicket(null);
+                    setTicketId('');
+                    setTicketURL('');
+                    setNotes('');
+                  }}
+                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateTicket}
+                  disabled={!ticketId.trim()}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                >
+                  Create Ticket
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Toast */}
