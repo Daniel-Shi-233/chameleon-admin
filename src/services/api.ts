@@ -9,6 +9,27 @@ import type {
 } from '../types/template';
 import type { LoginRequest, LoginResponse, AdminUser } from '../types/admin';
 import type { UserListResponse, UserDetail } from '../types/user';
+import type { JobListResponse, JobDetail, JobStats, JobListParams, AlertListResponse, AlertStats, AlertListParams, JobAlert } from '../types/job';
+
+// Dashboard types
+export interface DashboardSummary {
+  // Job stats
+  total_jobs: number;
+  queued_jobs: number;
+  processing_jobs: number;
+  completed_jobs: number;
+  failed_jobs: number;
+  today_jobs: number;
+  today_failed: number;
+  today_failure_rate: number;
+  // User stats
+  total_users: number;
+  guest_users: number;
+  registered_users: number;
+  total_credits: number;
+  // Alert stats
+  pending_alerts: number;
+}
 
 // Base URL for API
 const BASE_URL = 'https://chameleon-api-446996287300.us-central1.run.app';
@@ -192,12 +213,6 @@ export const getAuth = (): { token: string; user: AdminUser; permissions: string
   }
 };
 
-export const clearAuth = (): void => {
-  sessionStorage.removeItem(AUTH_KEY);
-  clearTemplateApi();
-  clearUserApi();
-};
-
 // User API
 export class UserApi {
   private client: AxiosInstance;
@@ -211,6 +226,7 @@ export class UserApi {
     page_size?: number;
     email?: string;
     account_type?: string;
+    acquisition_source?: string;
   }): Promise<UserListResponse> {
     const response = await this.client.get<ApiResponse<UserListResponse>>('/users', {
       params,
@@ -251,4 +267,138 @@ export const initUserApi = (token: string): void => {
 
 export const clearUserApi = (): void => {
   userApi = null;
+};
+
+// Job API
+export class JobApi {
+  private client: AxiosInstance;
+
+  constructor(token: string) {
+    this.client = createApiClient(token);
+  }
+
+  async listJobs(params?: JobListParams): Promise<JobListResponse> {
+    const response = await this.client.get<ApiResponse<JobListResponse>>('/jobs', {
+      params,
+    });
+    return response.data.data;
+  }
+
+  async getJob(id: string): Promise<JobDetail> {
+    const response = await this.client.get<ApiResponse<JobDetail>>(`/jobs/${id}`);
+    return response.data.data;
+  }
+
+  async getJobStats(): Promise<JobStats> {
+    const response = await this.client.get<ApiResponse<JobStats>>('/jobs/stats');
+    return response.data.data;
+  }
+}
+
+// Singleton pattern for Job API client
+let jobApi: JobApi | null = null;
+
+export const getJobApi = (token?: string): JobApi => {
+  if (!jobApi && token) {
+    jobApi = new JobApi(token);
+  }
+  if (!jobApi) {
+    throw new Error('Job API not initialized');
+  }
+  return jobApi;
+};
+
+export const initJobApi = (token: string): void => {
+  jobApi = new JobApi(token);
+};
+
+export const clearJobApi = (): void => {
+  jobApi = null;
+};
+
+// Alert API
+export class AlertApi {
+  private client: AxiosInstance;
+
+  constructor(token: string) {
+    this.client = createApiClient(token);
+  }
+
+  async listAlerts(params?: AlertListParams): Promise<AlertListResponse> {
+    const response = await this.client.get<ApiResponse<AlertListResponse>>('/alerts', {
+      params,
+    });
+    return response.data.data;
+  }
+
+  async getAlert(id: string): Promise<JobAlert> {
+    const response = await this.client.get<ApiResponse<JobAlert>>(`/alerts/${id}`);
+    return response.data.data;
+  }
+
+  async getAlertStats(): Promise<AlertStats> {
+    const response = await this.client.get<ApiResponse<AlertStats>>('/alerts/stats');
+    return response.data.data;
+  }
+
+  async acknowledgeAlert(id: string, notes: string): Promise<{ message: string; alert_id: string }> {
+    const response = await this.client.post<ApiResponse<{ message: string; alert_id: string }>>(`/alerts/${id}/acknowledge`, {
+      notes,
+    });
+    return response.data.data;
+  }
+
+  async acknowledgeBatch(alertIds: string[], notes: string): Promise<{ message: string; acknowledged_count: number }> {
+    const response = await this.client.post<ApiResponse<{ message: string; acknowledged_count: number }>>('/alerts/acknowledge-batch', {
+      alert_ids: alertIds,
+      notes,
+    });
+    return response.data.data;
+  }
+
+  async createTicket(id: string, ticketId: string, ticketUrl: string, notes: string): Promise<{ message: string; alert_id: string; ticket_id: string; ticket_url: string }> {
+    const response = await this.client.post<ApiResponse<{ message: string; alert_id: string; ticket_id: string; ticket_url: string }>>(`/alerts/${id}/ticket`, {
+      ticket_id: ticketId,
+      ticket_url: ticketUrl,
+      notes,
+    });
+    return response.data.data;
+  }
+}
+
+// Singleton pattern for Alert API client
+let alertApi: AlertApi | null = null;
+
+export const getAlertApi = (token?: string): AlertApi => {
+  if (!alertApi && token) {
+    alertApi = new AlertApi(token);
+  }
+  if (!alertApi) {
+    throw new Error('Alert API not initialized');
+  }
+  return alertApi;
+};
+
+export const initAlertApi = (token: string): void => {
+  alertApi = new AlertApi(token);
+};
+
+export const clearAlertApi = (): void => {
+  alertApi = null;
+};
+
+// Clear all auth and API clients
+export const clearAuth = (): void => {
+  sessionStorage.removeItem(AUTH_KEY);
+  clearTemplateApi();
+  clearUserApi();
+  clearJobApi();
+  clearAlertApi();
+};
+
+// Dashboard API (standalone function)
+export const getDashboardSummary = async (token: string): Promise<DashboardSummary> => {
+  const client = createApiClient(token);
+  const response = await client.get<ApiResponse<DashboardSummary>>('/dashboard/summary');
+  return response.data.data;
 };

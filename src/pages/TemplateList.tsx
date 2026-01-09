@@ -225,11 +225,17 @@ export default function TemplateList() {
           <div className="flex items-center gap-6">
             <h1 className="text-2xl font-bold text-gray-900">Template Management</h1>
             <nav className="flex gap-4">
+              <Link to="/dashboard" className="text-gray-600 hover:text-gray-900">
+                Dashboard
+              </Link>
               <Link to="/templates" className="text-blue-600 font-medium">
                 Templates
               </Link>
               <Link to="/users" className="text-gray-600 hover:text-gray-900">
                 Users
+              </Link>
+              <Link to="/jobs" className="text-gray-600 hover:text-gray-900">
+                Jobs
               </Link>
             </nav>
           </div>

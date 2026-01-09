@@ -3,6 +3,7 @@
 export type AccountType = 'guest' | 'registered';
 export type FeatureLevel = 'standard' | 'pro';
 export type SubscriptionTier = 'free' | 'basic' | 'premium';
+export type AcquisitionSource = 'organic' | 'paid_ad';
 export type JobType = 'image' | 'video';
 export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
 
@@ -16,6 +17,8 @@ export interface UserListItem {
   available_credits: number;
   feature_level: FeatureLevel;
   subscription_tier: SubscriptionTier;
+  acquisition_source: AcquisitionSource;
+  campaign_id: string | null;
   created_at: string;
 }
 

@@ -291,6 +291,7 @@ export default function UserList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<'all' | 'guest' | 'registered'>('all');
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'organic' | 'paid_ad'>('all');
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [page, setPage] = useState(1);
@@ -320,6 +321,7 @@ export default function UserList() {
         page_size: pageSize,
         email: search || undefined,
         account_type: filter === 'all' ? undefined : filter,
+        acquisition_source: sourceFilter === 'all' ? undefined : sourceFilter,
       });
       setUsers(response.users || []);
       setTotal(response.total);
@@ -329,7 +331,7 @@ export default function UserList() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, search, filter]);
+  }, [page, pageSize, search, filter, sourceFilter]);
 
   useEffect(() => {
     loadUsers();
@@ -360,11 +362,17 @@ export default function UserList() {
           <div className="flex items-center gap-6">
             <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
             <nav className="flex gap-4">
+              <Link to="/dashboard" className="text-gray-600 hover:text-gray-900">
+                Dashboard
+              </Link>
               <Link to="/templates" className="text-gray-600 hover:text-gray-900">
                 Templates
               </Link>
               <Link to="/users" className="text-blue-600 font-medium">
                 Users
+              </Link>
+              <Link to="/jobs" className="text-gray-600 hover:text-gray-900">
+                Jobs
               </Link>
             </nav>
           </div>
@@ -382,47 +390,69 @@ export default function UserList() {
 
       <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
         {/* Filters */}
-        <div className="mb-6 flex flex-wrap gap-4 items-center justify-between">
-          <div className="flex gap-2">
-            {(['all', 'guest', 'registered'] as const).map((type) => (
+        <div className="mb-6 space-y-4">
+          {/* Account Type Filters */}
+          <div className="flex flex-wrap gap-4 items-center justify-between">
+            <div className="flex gap-2">
+              <span className="text-sm font-medium text-gray-700 self-center mr-2">Account Type:</span>
+              {(['all', 'guest', 'registered'] as const).map((type) => (
+                <button
+                  key={type}
+                  onClick={() => { setFilter(type); setPage(1); }}
+                  className={`px-4 py-2 rounded-md ${
+                    filter === type
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  {type.charAt(0).toUpperCase() + type.slice(1)}
+                </button>
+              ))}
+            </div>
+
+            <form onSubmit={handleSearch} className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Search by email..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                type="submit"
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                Search
+              </button>
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => { setSearch(''); setSearchInput(''); setPage(1); }}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                >
+                  Clear
+                </button>
+              )}
+            </form>
+          </div>
+
+          {/* Attribution Source Filters */}
+          <div className="flex gap-2 items-center">
+            <span className="text-sm font-medium text-gray-700 mr-2">Attribution:</span>
+            {(['all', 'organic', 'paid_ad'] as const).map((type) => (
               <button
                 key={type}
-                onClick={() => { setFilter(type); setPage(1); }}
+                onClick={() => { setSourceFilter(type); setPage(1); }}
                 className={`px-4 py-2 rounded-md ${
-                  filter === type
-                    ? 'bg-blue-600 text-white'
+                  sourceFilter === type
+                    ? 'bg-green-600 text-white'
                     : 'bg-white text-gray-700 hover:bg-gray-50'
                 }`}
               >
-                {type.charAt(0).toUpperCase() + type.slice(1)}
+                {type === 'paid_ad' ? 'Paid Ad' : type.charAt(0).toUpperCase() + type.slice(1)}
               </button>
             ))}
           </div>
-
-          <form onSubmit={handleSearch} className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Search by email..."
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              className="px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <button
-              type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-            >
-              Search
-            </button>
-            {search && (
-              <button
-                type="button"
-                onClick={() => { setSearch(''); setSearchInput(''); setPage(1); }}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
-              >
-                Clear
-              </button>
-            )}
-          </form>
         </div>
 
         {/* Error */}
@@ -457,6 +487,9 @@ export default function UserList() {
                       Type
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Source
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Credits
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -487,6 +520,23 @@ export default function UserList() {
                         }`}>
                           {user.account_type}
                         </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span
+                          className={`px-2 py-1 text-xs rounded ${
+                            user.acquisition_source === 'paid_ad'
+                              ? 'bg-orange-100 text-orange-800'
+                              : 'bg-blue-100 text-blue-800'
+                          }`}
+                          title={user.campaign_id ? `Campaign: ${user.campaign_id}` : undefined}
+                        >
+                          {user.acquisition_source === 'paid_ad' ? 'Paid Ad' : 'Organic'}
+                        </span>
+                        {user.campaign_id && (
+                          <div className="text-xs text-gray-500 mt-1 font-mono">
+                            {user.campaign_id.substring(0, 12)}...
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900">{user.available_credits}</div>
