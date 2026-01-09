@@ -375,8 +375,8 @@ export const getFunnelStats = async (token: string, period: string = '7d'): Prom
 // Matching Rules API
 export const getMatchingRules = async (token: string): Promise<MatchingRuleConfig[]> => {
   const client = createApiClient(token);
-  const response = await client.get<ApiResponse<MatchingRuleConfig[]>>('/attribution/rules');
-  return response.data.data;
+  const response = await client.get<ApiResponse<{ rules: MatchingRuleConfig[] }>>('/attribution/rules');
+  return response.data.data.rules || [];
 };
 
 export const getActiveMatchingRule = async (token: string): Promise<MatchingRuleConfig | null> => {
