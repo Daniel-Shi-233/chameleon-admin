@@ -10,7 +10,7 @@ import type {
 import type { LoginRequest, LoginResponse, AdminUser } from '../types/admin';
 import type { UserListResponse, UserDetail } from '../types/user';
 import type { JobListResponse, JobDetail, JobStats, JobListParams } from '../types/job';
-import type { AttributionStats, FunnelStatsResponse } from '../types/attribution';
+import type { AttributionStats, FunnelStatsResponse, MatchingRuleConfig, CreateMatchingRuleRequest, TestMatchingRuleRequest, TestMatchingRuleResponse } from '../types/attribution';
 
 // Dashboard types
 export interface DashboardSummary {
@@ -369,5 +369,42 @@ export const getFunnelStats = async (token: string, period: string = '7d'): Prom
   const response = await client.get<ApiResponse<FunnelStatsResponse>>('/stats/funnel', {
     params: { period },
   });
+  return response.data.data;
+};
+
+// Matching Rules API
+export const getMatchingRules = async (token: string): Promise<MatchingRuleConfig[]> => {
+  const client = createApiClient(token);
+  const response = await client.get<ApiResponse<MatchingRuleConfig[]>>('/attribution/rules');
+  return response.data.data;
+};
+
+export const getActiveMatchingRule = async (token: string): Promise<MatchingRuleConfig | null> => {
+  const client = createApiClient(token);
+  try {
+    const response = await client.get<ApiResponse<MatchingRuleConfig>>('/attribution/rules/active');
+    return response.data.data;
+  } catch (error) {
+    if (error instanceof AxiosError && error.response?.status === 404) {
+      return null;
+    }
+    throw error;
+  }
+};
+
+export const createMatchingRule = async (token: string, rule: CreateMatchingRuleRequest): Promise<MatchingRuleConfig> => {
+  const client = createApiClient(token);
+  const response = await client.post<ApiResponse<MatchingRuleConfig>>('/attribution/rules', rule);
+  return response.data.data;
+};
+
+export const activateMatchingRule = async (token: string, ruleId: string): Promise<void> => {
+  const client = createApiClient(token);
+  await client.post(`/attribution/rules/${ruleId}/activate`);
+};
+
+export const testMatchingRule = async (token: string, request: TestMatchingRuleRequest): Promise<TestMatchingRuleResponse> => {
+  const client = createApiClient(token);
+  const response = await client.post<ApiResponse<TestMatchingRuleResponse>>('/attribution/rules/test', request);
   return response.data.data;
 };

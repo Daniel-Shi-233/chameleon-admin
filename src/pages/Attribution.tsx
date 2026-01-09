@@ -78,6 +78,9 @@ export default function Attribution() {
               <Link to="/attribution" className="text-blue-600 font-medium">
                 Attribution
               </Link>
+              <Link to="/matching-rules" className="text-gray-600 hover:text-gray-900">
+                Rules
+              </Link>
             </nav>
           </div>
           <div className="flex items-center gap-4">

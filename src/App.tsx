@@ -6,6 +6,7 @@ import TemplateEdit from './pages/TemplateEdit';
 import UserList from './pages/UserList';
 import JobList from './pages/JobList';
 import Attribution from './pages/Attribution';
+import MatchingRules from './pages/MatchingRules';
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
         <Route path="/users" element={<UserList />} />
         <Route path="/jobs" element={<JobList />} />
         <Route path="/attribution" element={<Attribution />} />
+        <Route path="/matching-rules" element={<MatchingRules />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
