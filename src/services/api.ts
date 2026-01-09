@@ -10,7 +10,7 @@ import type {
 import type { LoginRequest, LoginResponse, AdminUser } from '../types/admin';
 import type { UserListResponse, UserDetail } from '../types/user';
 import type { JobListResponse, JobDetail, JobStats, JobListParams } from '../types/job';
-import type { AttributionStats } from '../types/attribution';
+import type { AttributionStats, FunnelStatsResponse } from '../types/attribution';
 
 // Dashboard types
 export interface DashboardSummary {
@@ -360,5 +360,14 @@ export const getDashboardSummary = async (token: string): Promise<DashboardSumma
 export const getAttributionStats = async (token: string): Promise<AttributionStats> => {
   const client = createApiClient(token);
   const response = await client.get<ApiResponse<AttributionStats>>('/stats/attribution');
+  return response.data.data;
+};
+
+// Funnel Statistics API (standalone function)
+export const getFunnelStats = async (token: string, period: string = '7d'): Promise<FunnelStatsResponse> => {
+  const client = createApiClient(token);
+  const response = await client.get<ApiResponse<FunnelStatsResponse>>('/stats/funnel', {
+    params: { period },
+  });
   return response.data.data;
 };

@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { getAttributionStats, clearAuth, getAuth } from '../services/api';
-import type { AttributionStats } from '../types/attribution';
+import { getAttributionStats, getFunnelStats, clearAuth, getAuth } from '../services/api';
+import type { AttributionStats, FunnelStatsResponse } from '../types/attribution';
 
 export default function Attribution() {
   const [stats, setStats] = useState<AttributionStats | null>(null);
+  const [funnelStats, setFunnelStats] = useState<FunnelStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [userEmail, setUserEmail] = useState('');
+  const [period, setPeriod] = useState('7d');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -17,14 +19,18 @@ export default function Attribution() {
       return;
     }
     setUserEmail(auth.user.email);
-    loadStats(auth.token);
-  }, [navigate]);
+    loadAllStats(auth.token, period);
+  }, [navigate, period]);
 
-  const loadStats = async (token: string) => {
+  const loadAllStats = async (token: string, selectedPeriod: string) => {
     try {
       setLoading(true);
-      const data = await getAttributionStats(token);
-      setStats(data);
+      const [attrData, funnelData] = await Promise.all([
+        getAttributionStats(token),
+        getFunnelStats(token, selectedPeriod),
+      ]);
+      setStats(attrData);
+      setFunnelStats(funnelData);
     } catch (err) {
       setError('Failed to load attribution statistics');
       console.error(err);
@@ -41,8 +47,12 @@ export default function Attribution() {
   const handleRefresh = () => {
     const auth = getAuth();
     if (auth) {
-      loadStats(auth.token);
+      loadAllStats(auth.token, period);
     }
+  };
+
+  const handlePeriodChange = (newPeriod: string) => {
+    setPeriod(newPeriod);
   };
 
   return (
@@ -83,19 +93,32 @@ export default function Attribution() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-        {/* Page Title and Refresh */}
+        {/* Page Title and Controls */}
         <div className="flex justify-between items-center mb-6">
           <div>
             <h2 className="text-3xl font-bold text-gray-900">Attribution Statistics</h2>
             <p className="text-gray-600 mt-1">Track user acquisition sources and campaign performance</p>
           </div>
-          <button
-            onClick={handleRefresh}
-            disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-          >
-            {loading ? 'Loading...' : 'Refresh'}
-          </button>
+          <div className="flex items-center gap-4">
+            {/* Period Selector */}
+            <select
+              value={period}
+              onChange={(e) => handlePeriodChange(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-700"
+            >
+              <option value="1d">Last 24 hours</option>
+              <option value="7d">Last 7 days</option>
+              <option value="30d">Last 30 days</option>
+              <option value="90d">Last 90 days</option>
+            </select>
+            <button
+              onClick={handleRefresh}
+              disabled={loading}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+            >
+              {loading ? 'Loading...' : 'Refresh'}
+            </button>
+          </div>
         </div>
 
         {/* Error Message */}
@@ -109,6 +132,211 @@ export default function Attribution() {
         {loading && !stats && (
           <div className="text-center py-10">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        )}
+
+        {/* Funnel Statistics */}
+        {funnelStats && (
+          <div className="mb-8 bg-white rounded-lg shadow-md p-6">
+            <h3 className="text-xl font-semibold mb-6">Landing Page Funnel ({funnelStats.period})</h3>
+
+            {/* Funnel Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              <div className="bg-blue-50 rounded-lg p-4">
+                <div className="text-sm text-gray-500 mb-1">Page Views</div>
+                <div className="text-3xl font-bold text-blue-600">
+                  {funnelStats.funnel.page_views.toLocaleString()}
+                </div>
+                <div className="text-xs text-gray-400 mt-1">Landing page visits</div>
+              </div>
+
+              <div className="bg-cyan-50 rounded-lg p-4">
+                <div className="text-sm text-gray-500 mb-1">Download Clicks</div>
+                <div className="text-3xl font-bold text-cyan-600">
+                  {funnelStats.funnel.download_clicks.toLocaleString()}
+                </div>
+                <div className="text-xs text-green-600 mt-1">
+                  {funnelStats.conversion_rates.click_rate.toFixed(1)}% click rate
+                </div>
+              </div>
+
+              <div className="bg-teal-50 rounded-lg p-4">
+                <div className="text-sm text-gray-500 mb-1">App Opens</div>
+                <div className="text-3xl font-bold text-teal-600">
+                  {funnelStats.funnel.app_opens.toLocaleString()}
+                </div>
+                <div className="text-xs text-green-600 mt-1">
+                  {funnelStats.conversion_rates.install_rate.toFixed(1)}% install rate
+                </div>
+              </div>
+
+              <div className="bg-purple-50 rounded-lg p-4">
+                <div className="text-sm text-gray-500 mb-1">Attributions</div>
+                <div className="text-3xl font-bold text-purple-600">
+                  {funnelStats.funnel.attributions.toLocaleString()}
+                </div>
+                <div className="text-xs text-green-600 mt-1">
+                  {funnelStats.conversion_rates.attribution_rate.toFixed(1)}% attribution rate
+                </div>
+              </div>
+            </div>
+
+            {/* Funnel Visualization */}
+            <div className="space-y-2 mb-6">
+              <div className="flex items-center gap-2">
+                <div className="w-24 text-xs text-gray-500 text-right">Page Views</div>
+                <div className="flex-grow bg-gray-200 rounded-full h-6">
+                  <div
+                    className="bg-blue-500 h-6 rounded-full transition-all"
+                    style={{ width: '100%' }}
+                  />
+                </div>
+                <div className="w-16 text-sm font-semibold text-gray-700">
+                  {funnelStats.funnel.page_views.toLocaleString()}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="w-24 text-xs text-gray-500 text-right">Clicks</div>
+                <div className="flex-grow bg-gray-200 rounded-full h-6">
+                  <div
+                    className="bg-cyan-500 h-6 rounded-full transition-all"
+                    style={{
+                      width: `${funnelStats.funnel.page_views > 0
+                        ? (funnelStats.funnel.download_clicks / funnelStats.funnel.page_views * 100)
+                        : 0}%`
+                    }}
+                  />
+                </div>
+                <div className="w-16 text-sm font-semibold text-gray-700">
+                  {funnelStats.funnel.download_clicks.toLocaleString()}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="w-24 text-xs text-gray-500 text-right">Installs</div>
+                <div className="flex-grow bg-gray-200 rounded-full h-6">
+                  <div
+                    className="bg-teal-500 h-6 rounded-full transition-all"
+                    style={{
+                      width: `${funnelStats.funnel.page_views > 0
+                        ? (funnelStats.funnel.app_opens / funnelStats.funnel.page_views * 100)
+                        : 0}%`
+                    }}
+                  />
+                </div>
+                <div className="w-16 text-sm font-semibold text-gray-700">
+                  {funnelStats.funnel.app_opens.toLocaleString()}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="w-24 text-xs text-gray-500 text-right">Attributed</div>
+                <div className="flex-grow bg-gray-200 rounded-full h-6">
+                  <div
+                    className="bg-purple-500 h-6 rounded-full transition-all"
+                    style={{
+                      width: `${funnelStats.funnel.page_views > 0
+                        ? (funnelStats.funnel.attributions / funnelStats.funnel.page_views * 100)
+                        : 0}%`
+                    }}
+                  />
+                </div>
+                <div className="w-16 text-sm font-semibold text-gray-700">
+                  {funnelStats.funnel.attributions.toLocaleString()}
+                </div>
+              </div>
+            </div>
+
+            {/* By Source Table */}
+            {funnelStats.by_source.length > 0 && (
+              <div className="mt-6">
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">By Source</h4>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Source</th>
+                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Views</th>
+                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Clicks</th>
+                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Installs</th>
+                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Attributed</th>
+                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Click Rate</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {funnelStats.by_source.map((source) => (
+                        <tr key={source.source}>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {source.source}
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-600 text-right">
+                            {source.page_views.toLocaleString()}
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-600 text-right">
+                            {source.download_clicks.toLocaleString()}
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-600 text-right">
+                            {source.app_opens.toLocaleString()}
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-purple-600 font-semibold text-right">
+                            {source.attributions.toLocaleString()}
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-green-600 text-right">
+                            {source.click_rate.toFixed(1)}%
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* By Campaign Table */}
+            {funnelStats.by_campaign.length > 0 && (
+              <div className="mt-6">
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">By Campaign</h4>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Campaign</th>
+                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Views</th>
+                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Clicks</th>
+                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Installs</th>
+                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Attributed</th>
+                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Click Rate</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {funnelStats.by_campaign.map((campaign) => (
+                        <tr key={campaign.campaign_id}>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {campaign.campaign_id || 'Unknown'}
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-600 text-right">
+                            {campaign.page_views.toLocaleString()}
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-600 text-right">
+                            {campaign.download_clicks.toLocaleString()}
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-600 text-right">
+                            {campaign.app_opens.toLocaleString()}
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-purple-600 font-semibold text-right">
+                            {campaign.attributions.toLocaleString()}
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm text-green-600 text-right">
+                            {campaign.click_rate.toFixed(1)}%
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

@@ -17,3 +17,47 @@ export interface AttributionStats {
   match_rate: number;
   credit_grant_rate: number;
 }
+
+// Funnel statistics types
+export interface FunnelStats {
+  page_views: number;
+  download_clicks: number;
+  app_opens: number;
+  attributions: number;
+}
+
+export interface ConversionRates {
+  click_rate: number;
+  install_rate: number;
+  attribution_rate: number;
+}
+
+export interface CampaignFunnelStats {
+  campaign_id: string;
+  page_views: number;
+  download_clicks: number;
+  app_opens: number;
+  attributions: number;
+  click_rate: number;
+  install_rate: number;
+  attribution_rate: number;
+}
+
+export interface SourceFunnelStats {
+  source: string;
+  page_views: number;
+  download_clicks: number;
+  app_opens: number;
+  attributions: number;
+  click_rate: number;
+  install_rate: number;
+  attribution_rate: number;
+}
+
+export interface FunnelStatsResponse {
+  period: string;
+  funnel: FunnelStats;
+  conversion_rates: ConversionRates;
+  by_campaign: CampaignFunnelStats[];
+  by_source: SourceFunnelStats[];
+}
