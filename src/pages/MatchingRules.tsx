@@ -153,7 +153,19 @@ export default function MatchingRules() {
         data: testData,
       });
 
-      setTestResult(result);
+      // Compute breakdown locally since backend doesn't return it
+      const breakdown = {
+        device_model: testData.device_model ? formData.device_model_score : 0,
+        screen: (testData.screen_width && testData.screen_height) ? formData.screen_score : 0,
+        timezone: testData.timezone ? formData.timezone_score : 0,
+        language: testData.language ? formData.language_score : 0,
+        country: testData.country ? formData.country_score : 0,
+      };
+
+      setTestResult({
+        ...result,
+        breakdown,
+      });
     } catch (err) {
       setError('Failed to test rule');
       console.error(err);
